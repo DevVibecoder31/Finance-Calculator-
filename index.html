@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SIP vs FD Calculator</title>
+<style>
+  :root{
+    --bg:#f7f7f5; --card:#ffffff; --text:#1a1a1a; --muted:#6b6b6b;
+    --accent:#2f6f4f; --accent2:#a8763e; --border:#e3e1db;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#15161a; --card:#1e2025; --text:#eaeaea; --muted:#9a9a9a;
+      --accent:#5fbf8f; --accent2:#d99a5b; --border:#2c2e33;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#15161a; --card:#1e2025; --text:#eaeaea; --muted:#9a9a9a;
+    --accent:#5fbf8f; --accent2:#d99a5b; --border:#2c2e33;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    line-height:1.5;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:32px 20px 60px;}
+  h1{font-size:1.5rem;margin-bottom:4px;}
+  .sub{color:var(--muted);margin-top:0;margin-bottom:28px;font-size:0.95rem;}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:22px; margin-bottom:20px;
+  }
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:520px){ .grid{grid-template-columns:1fr;} }
+  label{display:block;font-size:0.85rem;color:var(--muted);margin-bottom:6px;}
+  input{
+    width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border);
+    background:transparent; color:var(--text); font-size:1rem;
+  }
+  input:focus{outline:2px solid var(--accent); outline-offset:1px;}
+  .results{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px;}
+  @media (max-width:520px){ .results{grid-template-columns:1fr;} }
+  .box{border-radius:10px;padding:16px;border:1px solid var(--border);}
+  .box.sip{border-left:4px solid var(--accent);}
+  .box.fd{border-left:4px solid var(--accent2);}
+  .box h3{margin:0 0 6px;font-size:0.95rem;}
+  .box .num{font-size:1.4rem;font-weight:600;margin:2px 0;}
+  .box .row{display:flex;justify-content:space-between;font-size:0.85rem;color:var(--muted);margin-top:4px;}
+  .verdict{margin-top:18px;font-size:0.95rem;padding:12px 14px;border-radius:8px;background:var(--bg);border:1px solid var(--border);}
+  .bars{margin-top:20px;overflow-x:auto;}
+  .bar-row{display:flex;align-items:center;gap:10px;margin:6px 0;font-size:0.8rem;}
+  .bar-label{width:70px;flex-shrink:0;color:var(--muted);}
+  .bar-track{flex:1;background:var(--bg);border-radius:6px;height:20px;position:relative;min-width:120px;}
+  .bar-fill{height:100%;border-radius:6px;}
+  footer{color:var(--muted);font-size:0.8rem;text-align:center;margin-top:24px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>SIP vs FD Calculator</h1>
+  <p class="sub">See how a monthly SIP compares to a Fixed Deposit over time, adjusted for inflation.</p>
+
+  <div class="card">
+    <div class="grid">
+      <div>
+        <label for="monthly">Monthly investment (₹)</label>
+        <input type="number" id="monthly" value="5000" min="0">
+      </div>
+      <div>
+        <label for="years">Tenure (years)</label>
+        <input type="number" id="years" value="10" min="1" max="40">
+      </div>
+      <div>
+        <label for="sipRate">Expected SIP return (% p.a.)</label>
+        <input type="number" id="sipRate" value="12" step="0.1">
+      </div>
+      <div>
+        <label for="fdRate">FD interest rate (% p.a.)</label>
+        <input type="number" id="fdRate" value="7" step="0.1">
+      </div>
+      <div>
+        <label for="inflation">Inflation rate (% p.a.)</label>
+        <input type="number" id="inflation" value="6" step="0.1">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="results">
+      <div class="box sip">
+        <h3>SIP (Mutual Fund)</h3>
+        <div class="num" id="sipFuture">₹0</div>
+        <div class="row"><span>Invested</span><span id="sipInvested">₹0</span></div>
+        <div class="row"><span>Inflation-adjusted</span><span id="sipReal">₹0</span></div>
+      </div>
+      <div class="box fd">
+        <h3>Fixed Deposit</h3>
+        <div class="num" id="fdFuture">₹0</div>
+        <div class="row"><span>Invested</span><span id="fdInvested">₹0</span></div>
+        <div class="row"><span>Inflation-adjusted</span><span id="fdReal">₹0</span></div>
+      </div>
+    </div>
+
+    <div class="bars" id="bars"></div>
+
+    <div class="verdict" id="verdict"></div>
+  </div>
+
+  <footer>Estimates only — actual returns vary and are not guaranteed. Not financial advice.</footer>
+</div>
+
+<script>
+function fmt(n){
+  return '₹' + Math.round(n).toLocaleString('en-IN');
+}
+
+function calcSIP(monthly, annualRatePct, years){
+  const r = annualRatePct/100/12;
+  const n = years*12;
+  if (r === 0) return monthly*n;
+  return monthly * ((Math.pow(1+r, n) - 1) / r) * (1+r);
+}
+
+function calcFD(monthly, annualRatePct, years){
+  // Treat FD like a recurring deposit compounded quarterly for a fair monthly-contribution comparison
+  const r = annualRatePct/100/4;
+  const n = years*4;
+  const quarterlyContribution = monthly*3;
+  if (r === 0) return quarterlyContribution*n;
+  return quarterlyContribution * ((Math.pow(1+r, n) - 1) / r) * (1+r);
+}
+
+function realValue(future, inflationPct, years){
+  return future / Math.pow(1+inflationPct/100, years);
+}
+
+function render(){
+  const monthly = parseFloat(document.getElementById('monthly').value) || 0;
+  const years = parseFloat(document.getElementById('years').value) || 0;
+  const sipRate = parseFloat(document.getElementById('sipRate').value) || 0;
+  const fdRate = parseFloat(document.getElementById('fdRate').value) || 0;
+  const inflation = parseFloat(document.getElementById('inflation').value) || 0;
+
+  const invested = monthly * 12 * years;
+  const sipFuture = calcSIP(monthly, sipRate, years);
+  const fdFuture = calcFD(monthly, fdRate, years);
+  const sipReal = realValue(sipFuture, inflation, years);
+  const fdReal = realValue(fdFuture, inflation, years);
+
+  document.getElementById('sipFuture').textContent = fmt(sipFuture);
+  document.getElementById('sipInvested').textContent = fmt(invested);
+  document.getElementById('sipReal').textContent = fmt(sipReal);
+
+  document.getElementById('fdFuture').textContent = fmt(fdFuture);
+  document.getElementById('fdInvested').textContent = fmt(invested);
+  document.getElementById('fdReal').textContent = fmt(fdReal);
+
+  const max = Math.max(sipFuture, fdFuture, 1);
+  const barsEl = document.getElementById('bars');
+  barsEl.innerHTML = `
+    <div class="bar-row">
+      <div class="bar-label">SIP</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(sipFuture/max*100).toFixed(1)}%; background:var(--accent);"></div></div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">FD</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(fdFuture/max*100).toFixed(1)}%; background:var(--accent2);"></div></div>
+    </div>
+  `;
+
+  const diff = sipFuture - fdFuture;
+  const verdictEl = document.getElementById('verdict');
+  if (years <= 0 || monthly <= 0){
+    verdictEl.textContent = 'Enter valid values to see a comparison.';
+  } else if (diff > 0){
+    verdictEl.textContent = `At these assumptions, the SIP outgrows the FD by about ${fmt(Math.abs(diff))} over ${years} years — but SIP returns aren't guaranteed, unlike a fixed FD rate.`;
+  } else {
+    verdictEl.textContent = `At these assumptions, the FD comes out ahead by about ${fmt(Math.abs(diff))} over ${years} years — FD returns are safer but usually lower than long-term equity SIPs.`;
+  }
+}
+
+document.querySelectorAll('input').forEach(el => el.addEventListener('input', render));
+render();
+</script>
+</body>
+</html>
